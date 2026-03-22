@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Implied Volatility Calculator</title>
+    <style>
+        body {
+            font-family: Arial;
+            max-width: 500px;
+            margin: 50px auto;
+        }
+        input, button {
+            width: 100%;
+            padding: 8px;
+            margin: 5px 0;
+        }
+    </style>
+</head>
+<body>
+
+<h2>Implied Volatility Calculator</h2>
+
+<label>Stock Price (S)</label>
+<input type="number" id="S" value="100">
+
+<label>Strike Price (K)</label>
+<input type="number" id="K" value="100">
+
+<label>Trading Date (dd-mm-yyyy)</label>
+<input type="text" id="startDate" value="01-03-2026">
+
+<label>Maturity Date (dd-mm-yyyy)</label>
+<input type="text" id="endDate" value="31-03-2026">
+
+<label>Risk-Free Rate (r)</label>
+<input type="number" id="r" value="0.05" step="0.01">
+
+<label>Call Option Price (Market)</label>
+<input type="number" id="C" value="3">
+
+<button onclick="calculateIV()">Calculate IV</button>
+
+<h3 id="result"></h3>
+
+<script>
+// Convert dd-mm-yyyy → Date object
+function parseDate(str) {
+    let parts = str.split("-");
+    return new Date(parts[2], parts[1] - 1, parts[0]);
+}
+
+// Normal CDF
+function normCDF(x) {
+    return (1.0 + erf(x / Math.sqrt(2))) / 2.0;
+}
+
+// Error function approximation
+function erf(x) {
+    let sign = (x >= 0) ? 1 : -1;
+    x = Math.abs(x);
+
+    let a1 = 0.254829592, a2 = -0.284496736;
+    let a3 = 1.421413741, a4 = -1.453152027;
+    let a5 = 1.061405429, p = 0.3275911;
+
+    let t = 1.0 / (1.0 + p * x);
+    let y = 1.0 - (((((a5 * t + a4) * t) + a3) * t + a2) * t + a1)
+            * t * Math.exp(-x * x);
+
+    return sign * y;
+}
+
+// Black-Scholes Call
+function bsCall(S, K, T, r, sigma) {
+    let d1 = (Math.log(S/K) + (r + 0.5 * sigma * sigma) * T) / (sigma * Math.sqrt(T));
+    let d2 = d1 - sigma * Math.sqrt(T);
+
+    return S * normCDF(d1) - K * Math.exp(-r*T) * normCDF(d2);
+}
+
+// Bisection for IV
+function impliedVol(C, S, K, T, r) {
+    let low = 1e-6;
+    let high = 5.0;
+
+    for (let i = 0; i < 100; i++) {
+        let mid = (low + high) / 2;
+        let price = bsCall(S, K, T, r, mid);
+
+        if (price > C) {
+            high = mid;
+        } else {
+            low = mid;
+        }
+    }
+
+    return (low + high) / 2;
+}
+
+// Main function
+function calculateIV() {
+    let S = parseFloat(document.getElementById("S").value);
+    let K = parseFloat(document.getElementById("K").value);
+    let r = parseFloat(document.getElementById("r").value);
+    let C = parseFloat(document.getElementById("C").value);
+
+    let startDate = parseDate(document.getElementById("startDate").value);
+    let endDate = parseDate(document.getElementById("endDate").value);
+
+    // Compute T
+    let diffTime = endDate - startDate;
+    let T = diffTime / (1000 * 60 * 60 * 24 * 365);
+
+    if (T <= 0) {
+        document.getElementById("result").innerText = "Invalid dates!";
+        return;
+    }
+
+    let iv = impliedVol(C, S, K, T, r);
+
+    document.getElementById("result").innerText =
+        "T = " + T.toFixed(4) + " years | IV = " + (iv * 100).toFixed(2) + "%";
+}
+</script>
+
+</body>
+</html>
